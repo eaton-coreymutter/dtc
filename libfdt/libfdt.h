@@ -2085,6 +2085,54 @@ int fdt_add_subnode(void *fdt, int parentoffset, const char *name);
  */
 int fdt_del_node(void *fdt, int nodeoffset);
 
+/** 
+ * fdt_create_node_path - Creates a node and intermediates if needed
+ * @fdt: pointer to the device tree blob
+ * @path: Absolute path to the new node
+ * 
+ * fdt_create_node_path will create the node at path, creating any
+ * intermediate nodes as needed. If it already exists no action is 
+ * taken.
+ *
+ * This function will insert data into the blob, and will therefore
+ * change the offsets of some existing nodes.
+ * 
+ * returns:
+ *  offset of the new node (or existing node if it already exists)
+ *  -FDT_ERR_NOSPACE, not enough free space to add the node(s)
+ *	-FDT_ERR_BADLAYOUT,
+ *	-FDT_ERR_BADMAGIC,
+ *	-FDT_ERR_BADVERSION,
+ *	-FDT_ERR_BADSTATE,
+ *	-FDT_ERR_BADSTRUCTURE,
+ *	-FDT_ERR_TRUNCATED, standard meanings
+ */
+int fdt_create_node_path(void *fdt, const char *path);
+
+/** 
+ * fdt_copy_tree - Copy a tree of nodes and properties
+ * @src_fdt: pointer to the device tree blob to copy from
+ * @dst_fdt: pointer to the device tree blob to copy to
+ * @path: Absolute path of the node to copy
+ * 
+ * fdt_copy_tree will copy all nodes and properties under
+ * the given path from the source FDT to the destination FDT.
+ * If the node does not exist in the source FDT then no action
+ * is taken.
+ * 
+ * This function will insert data into the blob, and will therefore
+ * change the offsets of some existing nodes.
+ * 
+ * This function will re-size the destination FDT, adding the
+ * source FDT's current used size to the destination, so ensure the
+ * buffer is sufficient!
+ * 
+ * Kind of expensive, and uses recursion. Does not optimize by
+ * trying to skip properties or modify them in place.
+ * 
+ */
+int fdt_copy_tree(const void *src_fdt, void *dst_fdt, const char *path);
+
 /**
  * fdt_overlay_apply - Applies a DT overlay on a base DT
  * @fdt: pointer to the base device tree blob

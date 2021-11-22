@@ -7,6 +7,7 @@
 
 #include <fdt.h>
 #include <libfdt.h>
+#include <stdio.h>
 
 #include "libfdt_internal.h"
 
@@ -497,4 +498,133 @@ int fdt_pack(void *fdt)
 	fdt_set_totalsize(fdt, fdt_data_size_(fdt));
 
 	return 0;
+}
+
+int fdt_create_node_path(void *fdt, const char *path)
+{
+	int current_parent, current_size, rc;
+	const char *this_name;
+	FDT_RW_PROBE(fdt);
+
+
+	current_parent = 0; /* root node */
+	this_name = &(path[1]); /* skip first slash */
+	while (this_name[0] != '\0') 
+	{
+		if ((this_name[0] == '/') && (this_name[1] == '\0'))
+		{
+			break; // ends in slash
+		}
+		current_size = 0;
+		while ((this_name[current_size] != '\0') && (this_name[current_size] != '/'))
+		{
+			current_size++;
+		}
+		rc = fdt_subnode_offset_namelen(fdt, current_parent, this_name, current_size);
+		if (rc < 0)
+		{
+			rc = fdt_add_subnode_namelen(fdt, current_parent, this_name, current_size);
+		}
+		if (rc < 0)
+		{
+			return rc;
+		}
+		current_parent = rc;
+		this_name += current_size;
+		if (this_name[0] == '/')
+		{
+			this_name = this_name + 1;
+		}
+	}
+	return current_parent;
+}
+
+/* Copy all properties and subnodes of a node recursively from "src" to "dst"
+ * fdt. Sufficient space has already been allocated.
+ */
+static int fdt_copy_subnodes_(const void *src_fdt, void *dst_fdt, int src_node_offset, const char *dst_node_path)
+{
+	int current_node_offset, current_property_offset, rc, current_len;
+	char *current_path;
+	const char *current_name;
+	size_t path_size;
+	const void *current_property;
+	int dst_node, this_parent;
+
+	this_parent = fdt_path_offset(dst_fdt, dst_node_path);
+	if (this_parent == -FDT_ERR_NOTFOUND)
+	{
+		this_parent = fdt_create_node_path(dst_fdt, dst_node_path);
+		if (this_parent < 0)
+		{
+			return this_parent;
+		}
+	}
+	fdt_for_each_subnode(current_node_offset, src_fdt, src_node_offset) 
+	{
+		const char *this_subnode_name = fdt_get_name(src_fdt, current_node_offset, NULL);
+		
+		dst_node = fdt_subnode_offset(dst_fdt, this_parent, this_subnode_name);
+		if (dst_node < 0)
+		{
+			dst_node = fdt_add_subnode(dst_fdt, this_parent, this_subnode_name);
+		}
+		if (dst_node < 0)
+		{
+			return dst_node;
+		}
+
+		/* Recurse into the possibly-newly-created subnode */
+		path_size = strlen(dst_node_path) + strlen(this_subnode_name) + 1; /* +1 for new slash */
+		current_path = malloc(path_size + 1); /* +1 for null */
+		snprintf(current_path, path_size+1, "%s/%s", dst_node_path, this_subnode_name);
+		current_path[path_size] = '\0';
+		rc = fdt_copy_subnodes_(src_fdt, dst_fdt, current_node_offset, current_path);
+		free(current_path);
+		if (rc < 0)
+		{
+			return rc;
+		}
+	}
+	fdt_for_each_property_offset(current_property_offset, src_fdt, src_node_offset)
+	{
+		/* Rather than try to optimize by finding if property exists and copy in place, 
+		 * instead just use fdt_setprop and re-find our node each time because it might
+		 * have moved. */
+		current_node_offset = fdt_path_offset(dst_fdt, dst_node_path);
+		if (current_node_offset < 0)
+		{
+			return current_node_offset;
+		}
+		current_property = fdt_getprop_by_offset(src_fdt, current_property_offset, &current_name, &current_len);
+		if (current_property != NULL)
+		{
+			fdt_setprop(dst_fdt, this_parent, current_name, current_property, current_len);
+		}
+	}
+	return 0;
+}
+
+int fdt_copy_tree(const void *src_fdt, void *dst_fdt, const char *path)
+{
+	int src_size, dst_size, src_offset, rc;
+	
+	FDT_RO_PROBE(src_fdt);
+	FDT_RW_PROBE(dst_fdt);
+
+	src_offset = fdt_path_offset(src_fdt, path);
+	if (src_offset == -FDT_ERR_NOTFOUND)
+	{
+		return 0; /* nothing to do */
+	}
+
+	src_size = fdt_totalsize(src_fdt);
+	dst_size = fdt_data_size_(dst_fdt);
+	/* Safe: allocate more space as though we were bringing in the whole src tree */
+	rc = fdt_open_into(dst_fdt, dst_fdt, dst_size + src_size);
+	if (rc < 0)
+	{
+		return rc;
+	}
+	return fdt_copy_subnodes_(src_fdt, dst_fdt, src_offset, path);
 }
