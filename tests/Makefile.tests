@@ -29,7 +29,8 @@ LIB_TESTS_L = get_mem_rsv \
 	subnode_iterate \
 	overlay overlay_bad_fixup \
 	check_path check_header check_full \
-	fs_tree1
+	fs_tree1 \
+	graft_test
 LIB_TESTS = $(LIB_TESTS_L:%=$(TESTS_PREFIX)%)
 
 LIBTREE_TESTS_L = truncated_property truncated_string truncated_memrsv \

@@ -958,6 +958,11 @@ fdtdump_tests () {
     run_fdtdump_test "$SRCDIR/fdtdump.dts"
 }
 
+graft_tests() {
+    run_test graft_test graft-test-1-src.dtb graft-test-1-dst.dtb graft-test-1-combined.dtb
+    run_test dtbs_equal_unordered graft-test-1-src.dtb graft-test-1-combined.dtb
+}
+
 fdtoverlay_tests() {
     base="$SRCDIR/overlay_base.dts"
     basedtb=overlay_base.fdoverlay.test.dtb
@@ -1087,9 +1092,12 @@ for set in $TESTSETS; do
 	"pylibfdt")
 	    pylibfdt_tests
 	    ;;
-        "fdtoverlay")
+    "fdtoverlay")
 	    fdtoverlay_tests
 	    ;;
+    "graft")
+        graft_tests
+        ;;
     esac
 done
 
